@@ -96,15 +96,14 @@ function calcularRegressaoLinear(registros) {
         b = (somaY - (a * somaX)) / n;
     }
 
-    const previsoes = x.map(valorX => (a * valorX) + b);
-
     const mediaY = somaY / n;
     let sqTotal = 0;
     let sqRes = 0;
 
     for (let i = 0; i < n; i++) {
+        const yPrevisto = (a * x[i]) + b;
         sqTotal += Math.pow(y[i] - mediaY, 2);
-        sqRes += Math.pow(y[i] - previsoes[i], 2);
+        sqRes += Math.pow(y[i] - yPrevisto, 2);
     }
 
     let r2 = 0;
@@ -165,7 +164,6 @@ function obterTrimestreDoMes(mes) {
 
 function preencherTabelaBase() {
     const corpoTabelaBase = document.getElementById("corpoTabelaBase");
-
     let linhas = "";
 
     for (const item of dadosVendas) {
@@ -184,6 +182,181 @@ function preencherTabelaBase() {
     corpoTabelaBase.innerHTML = linhas;
 }
 
+function criarEscalaPontos(pontos, width, height, padding) {
+    const valoresX = pontos.map(p => p.x);
+    const valoresY = pontos.map(p => p.y);
+
+    const minX = Math.min(...valoresX);
+    const maxX = Math.max(...valoresX);
+    const minY = Math.min(...valoresY);
+    const maxY = Math.max(...valoresY);
+
+    const rangeX = maxX - minX || 1;
+    const rangeY = maxY - minY || 1;
+
+    return pontos.map(p => {
+        const x = padding + ((p.x - minX) / rangeX) * (width - (padding * 2));
+        const y = height - padding - ((p.y - minY) / rangeY) * (height - (padding * 2));
+
+        return {
+            x,
+            y,
+            originalX: p.x,
+            originalY: p.y
+        };
+    });
+}
+
+function gerarPolyline(pontosEscalados) {
+    return pontosEscalados.map(p => `${p.x},${p.y}`).join(" ");
+}
+
+function gerarLinhaEixos(width, height, padding) {
+    return `
+        <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#444" stroke-width="1" />
+        <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#444" stroke-width="1" />
+    `;
+}
+
+function gerarRotulosMeses(width, height, padding) {
+    let html = "";
+
+    for (let mes = 1; mes <= 15; mes++) {
+        const x = padding + ((mes - 1) / 14) * (width - (padding * 2));
+        html += `
+            <text x="${x}" y="${height - padding + 18}" font-size="11" text-anchor="middle" fill="#333">
+                ${mes}
+            </text>
+        `;
+    }
+
+    return html;
+}
+
+function gerarGraficoSvg(produto, registros, a, b) {
+    const width = 860;
+    const height = 320;
+    const padding = 40;
+
+    const pontosReais = registros.map(item => ({
+        x: item.mes,
+        y: item.vendas
+    }));
+
+    const pontosPrevistosHistoricos = [];
+    for (let mes = 1; mes <= 12; mes++) {
+        pontosPrevistosHistoricos.push({
+            x: mes,
+            y: preverVenda(a, b, mes)
+        });
+    }
+
+    const pontosPrevistosFuturos = [];
+    for (let mes = 13; mes <= 15; mes++) {
+        pontosPrevistosFuturos.push({
+            x: mes,
+            y: preverVenda(a, b, mes)
+        });
+    }
+
+    const todosPontos = [
+        ...pontosReais,
+        ...pontosPrevistosHistoricos,
+        ...pontosPrevistosFuturos
+    ];
+
+    const pontosReaisEsc = criarEscalaPontos(pontosReais, width, height, padding);
+    const pontosPrevHistEsc = criarEscalaPontos(pontosPrevistosHistoricos, width, height, padding);
+    const pontosPrevFutEsc = criarEscalaPontos(pontosPrevistosFuturos, width, height, padding);
+    const todosPontosEsc = criarEscalaPontos(todosPontos, width, height, padding);
+
+    const minY = Math.min(...todosPontos.map(p => p.y));
+    const maxY = Math.max(...todosPontos.map(p => p.y));
+
+    let rotulosY = "";
+    for (let i = 0; i <= 5; i++) {
+        const valor = minY + ((maxY - minY) / 5) * i;
+        const y = height - padding - (i / 5) * (height - (padding * 2));
+
+        rotulosY += `
+            <line x1="${padding}" y1="${y}" x2="${width - padding}" y2="${y}" stroke="#e5e5e5" stroke-width="1" />
+            <text x="${padding - 8}" y="${y + 4}" font-size="11" text-anchor="end" fill="#333">
+                ${valor.toFixed(0)}
+            </text>
+        `;
+    }
+
+    let pontosReaisHtml = "";
+    for (const p of pontosReaisEsc) {
+        pontosReaisHtml += `
+            <circle cx="${p.x}" cy="${p.y}" r="4" fill="#2563eb">
+                <title>Mês ${p.originalX} | Real: ${p.originalY.toFixed(2)}</title>
+            </circle>
+        `;
+    }
+
+    let pontosFuturosHtml = "";
+    for (const p of pontosPrevFutEsc) {
+        pontosFuturosHtml += `
+            <circle cx="${p.x}" cy="${p.y}" r="4" fill="#16a34a">
+                <title>Mês ${p.originalX} | Previsto: ${p.originalY.toFixed(2)}</title>
+            </circle>
+        `;
+    }
+
+    return `
+        <div class="chart-box">
+            <div class="chart-title">Gráfico de tendência - ${produto}</div>
+
+            <div class="legend">
+                <div class="legend-item">
+                    <span class="legend-color leg-real"></span>
+                    <span>Vendas reais</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color leg-prev"></span>
+                    <span>Reta de regressão (meses 1 a 12)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color leg-fut"></span>
+                    <span>Previsão futura (meses 13 a 15)</span>
+                </div>
+            </div>
+
+            <svg class="chart-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+                ${rotulosY}
+                ${gerarLinhaEixos(width, height, padding)}
+                ${gerarRotulosMeses(width, height, padding)}
+
+                <polyline
+                    fill="none"
+                    stroke="#2563eb"
+                    stroke-width="2"
+                    points="${gerarPolyline(pontosReaisEsc)}"
+                ></polyline>
+
+                <polyline
+                    fill="none"
+                    stroke="#dc2626"
+                    stroke-width="2"
+                    points="${gerarPolyline(pontosPrevHistEsc)}"
+                ></polyline>
+
+                <polyline
+                    fill="none"
+                    stroke="#16a34a"
+                    stroke-width="2"
+                    stroke-dasharray="6,4"
+                    points="${gerarPolyline(pontosPrevFutEsc)}"
+                ></polyline>
+
+                ${pontosReaisHtml}
+                ${pontosFuturosHtml}
+            </svg>
+        </div>
+    `;
+}
+
 function gerarResultados() {
     const produtosAgrupados = obterProdutosAgrupados();
     const resultadoPorProduto = document.getElementById("resultadoPorProduto");
@@ -192,6 +365,8 @@ function gerarResultados() {
     let htmlResultados = "";
     let htmlPlanilha = "";
 
+    let indiceAccordion = 0;
+
     for (const produto in produtosAgrupados) {
         const registros = produtosAgrupados[produto].sort((a, b) => a.mes - b.mes);
         const { a, b, r2 } = calcularRegressaoLinear(registros);
@@ -199,12 +374,10 @@ function gerarResultados() {
         const confiabilidade = obterTextoConfiabilidade(r2, registros.length);
         const tendencia = obterTextoTendencia(a);
 
-        const previsoesProximosMeses = [13, 14, 15].map(mes => {
-            return {
-                mes: mes,
-                valor: preverVenda(a, b, mes)
-            };
-        });
+        const previsoesProximosMeses = [13, 14, 15].map(mes => ({
+            mes,
+            valor: preverVenda(a, b, mes)
+        }));
 
         const somaTrimestres = {
             "1º trimestre": 0,
@@ -224,69 +397,90 @@ function gerarResultados() {
             somaTrimestres["Próximo trimestre (13-15)"] += item.valor;
         }
 
+        const tabelaPrevisaoMeses = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mês</th>
+                        <th>Venda prevista (ŷ)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${previsoesProximosMeses.map(item => `
+                        <tr>
+                            <td>${item.mes}</td>
+                            <td>${item.valor.toFixed(2)}</td>
+                        </tr>
+                    `).join("")}
+                </tbody>
+            </table>
+        `;
+
+        const tabelaTrimestres = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Trimestre</th>
+                        <th>Soma das vendas previstas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1º trimestre</td>
+                        <td>${somaTrimestres["1º trimestre"].toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td>2º trimestre</td>
+                        <td>${somaTrimestres["2º trimestre"].toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td>3º trimestre</td>
+                        <td>${somaTrimestres["3º trimestre"].toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td>4º trimestre</td>
+                        <td>${somaTrimestres["4º trimestre"].toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td>Próximo trimestre (13-15)</td>
+                        <td>${somaTrimestres["Próximo trimestre (13-15)"].toFixed(2)}</td>
+                    </tr>
+                </tbody>
+            </table>
+        `;
+
+        const observacaoPva = produto === "Tinta PVA"
+            ? `<p class="observacao">Observação: a Tinta PVA possui apenas 2 meses na base fornecida, então a regressão foi calculada com amostra reduzida.</p>`
+            : "";
+
         htmlResultados += `
-            <div class="produto-card">
-                <h3>${produto}</h3>
-                <p><span class="texto-destaque">Equação da reta:</span> y = ${a.toFixed(2)}x + ${b.toFixed(2)}</p>
-                <p><span class="texto-destaque">Inclinação (a):</span> ${a.toFixed(2)}</p>
-                <p><span class="texto-destaque">Coeficiente linear (b):</span> ${b.toFixed(2)}</p>
-                <p><span class="texto-destaque">R²:</span> ${r2.toFixed(4)} - ${confiabilidade}</p>
-                <p><span class="texto-destaque">Tendência:</span> ${tendencia}</p>
+            <details class="accordion" ${indiceAccordion === 0 ? "open" : ""}>
+                <summary>${produto}</summary>
+                <div class="accordion-content">
+                    <div class="produto-grid">
+                        <div class="mini-card">
+                            <p><span class="texto-destaque">Equação da reta:</span> y = ${a.toFixed(2)}x + ${b.toFixed(2)}</p>
+                            <p><span class="texto-destaque">Inclinação (a):</span> ${a.toFixed(2)}</p>
+                            <p><span class="texto-destaque">Coeficiente linear (b):</span> ${b.toFixed(2)}</p>
+                        </div>
 
-                <h4>Previsão para os próximos 3 meses</h4>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Mês</th>
-                            <th>Venda prevista (ŷ)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${previsoesProximosMeses.map(item => `
-                            <tr>
-                                <td>${item.mes}</td>
-                                <td>${item.valor.toFixed(2)}</td>
-                            </tr>
-                        `).join("")}
-                    </tbody>
-                </table>
+                        <div class="mini-card">
+                            <p><span class="texto-destaque">R²:</span> ${r2.toFixed(4)}</p>
+                            <p><span class="texto-destaque">Confiabilidade:</span> ${confiabilidade}</p>
+                            <p><span class="texto-destaque">Tendência:</span> ${tendencia}</p>
+                        </div>
+                    </div>
 
-                <h4>Previsão agrupada por trimestre</h4>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Trimestre</th>
-                            <th>Soma das vendas previstas</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>1º trimestre</td>
-                            <td>${somaTrimestres["1º trimestre"].toFixed(2)}</td>
-                        </tr>
-                        <tr>
-                            <td>2º trimestre</td>
-                            <td>${somaTrimestres["2º trimestre"].toFixed(2)}</td>
-                        </tr>
-                        <tr>
-                            <td>3º trimestre</td>
-                            <td>${somaTrimestres["3º trimestre"].toFixed(2)}</td>
-                        </tr>
-                        <tr>
-                            <td>4º trimestre</td>
-                            <td>${somaTrimestres["4º trimestre"].toFixed(2)}</td>
-                        </tr>
-                        <tr>
-                            <td>Próximo trimestre (13-15)</td>
-                            <td>${somaTrimestres["Próximo trimestre (13-15)"].toFixed(2)}</td>
-                        </tr>
-                    </tbody>
-                </table>
+                    <h4>Previsão para os próximos 3 meses</h4>
+                    ${tabelaPrevisaoMeses}
 
-                <p class="observacao">
-                    Observação: para a Tinta PVA, a base possui apenas 2 meses informados na atividade, então a regressão foi calculada com amostra reduzida.
-                </p>
-            </div>
+                    <h4 style="margin-top:16px;">Previsão agrupada por trimestre</h4>
+                    ${tabelaTrimestres}
+
+                    ${gerarGraficoSvg(produto, registros, a, b)}
+                    ${observacaoPva}
+                </div>
+            </details>
         `;
 
         for (const registro of registros) {
@@ -314,13 +508,45 @@ function gerarResultados() {
                 </tr>
             `;
         }
+
+        indiceAccordion++;
     }
 
     resultadoPorProduto.innerHTML = htmlResultados;
     corpoTabelaPlanilha.innerHTML = htmlPlanilha;
 }
 
+function inicializarDataTable() {
+    new DataTable("#tabelaPlanilha", {
+        paging: true,
+        searching: true,
+        info: true,
+        ordering: true,
+        pageLength: 10,
+        lengthMenu: [5, 10, 15, 25, 50],
+        language: {
+            decimal: ",",
+            thousands: ".",
+            search: "Pesquisar:",
+            lengthMenu: "Mostrar _MENU_ registros por página",
+            info: "Mostrando _START_ até _END_ de _TOTAL_ registros",
+            infoEmpty: "Mostrando 0 até 0 de 0 registros",
+            infoFiltered: "(filtrado de _MAX_ registros no total)",
+            loadingRecords: "Carregando...",
+            zeroRecords: "Nenhum registro encontrado",
+            emptyTable: "Nenhum dado disponível na tabela",
+            paginate: {
+                first: "Primeiro",
+                previous: "Anterior",
+                next: "Próximo",
+                last: "Último"
+            }
+        }
+    });
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     preencherTabelaBase();
     gerarResultados();
+    inicializarDataTable();
 });
