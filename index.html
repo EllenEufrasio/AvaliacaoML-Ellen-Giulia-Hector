@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Regressão Linear Simples</title>
+    <style>
+        body {
+            font-family: Arial;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        input, button {
+            padding: 8px;
+            margin: 5px 0;
+            width: 300px;
+        }
+        #resultado {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Calculadora de Regressão Linear Simples</h2>
+
+    <label>Insira os meses ou períodos (valores separados por vírgula):</label><br>
+    <input type="text" id="valoresX" placeholder="Ex: 1,2,3,4,5"><br>
+
+    <label>Insira as vendas correspondentes (valores separados por vírgula):</label><br>
+    <input type="text" id="valoresY" placeholder="Ex: 120,150,130,180,200"><br>
+
+    <button onclick="calcular()">Calcular</button>
+
+    <div id="resultado"></div>
+
+    <div id="tabela"></div>
+
+    <script src="script.js"></script>
+
+</body>
+</html>
