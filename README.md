@@ -41,3 +41,10 @@ A regressão linear simples busca encontrar uma reta que melhor representa a rel
 
 ```text
 y = ax + b
+
+---
+
+## Link publicado do GitHub
+https://elleneufrasio.github.io/AvaliacaoML-Ellen-Giulia-Hector/
+
+---
