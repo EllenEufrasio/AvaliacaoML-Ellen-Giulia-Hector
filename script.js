@@ -516,8 +516,8 @@ function gerarResultados() {
     corpoTabelaPlanilha.innerHTML = htmlPlanilha;
 }
 
-function inicializarDataTable() {
-    new DataTable("#tabelaPlanilha", {
+function inicializarDataTable(idTabela) {
+    new DataTable(idTabela, {
         paging: true,
         searching: true,
         info: true,
@@ -548,5 +548,6 @@ function inicializarDataTable() {
 document.addEventListener("DOMContentLoaded", function () {
     preencherTabelaBase();
     gerarResultados();
-    inicializarDataTable();
+    inicializarDataTable("#tabelaBase");
+    inicializarDataTable("#tabelaPlanilha");
 });
